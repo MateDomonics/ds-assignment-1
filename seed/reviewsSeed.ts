@@ -11,7 +11,7 @@ export const reviews : Review[] = [
     {
         movieId: 1234,
         reviewerName: "John_Bloggs",
-        reviewDate: "2023-11-23",
+        reviewDate: "2022-11-23",
         content: "Pretty allright",
         rating: 5
     },
