@@ -1,6 +1,6 @@
 import { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, QueryCommandInput, QueryCommand } from "@aws-sdk/lib-dynamodb";
 
 const ddbDocClient = createDDbDocClient();
 
@@ -9,6 +9,9 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
         console.log("Event: ", event);
         const parameters = event?.queryStringParameters;
         const movieId = event?.pathParameters?.movieId ? parseInt(event.pathParameters.movieId) : undefined;
+
+        const minRatingParameter = event?.queryStringParameters?.minRating;
+        const minRating = minRatingParameter ? parseInt(minRatingParameter) : undefined;
 
         if (!movieId) {
             return {
@@ -20,14 +23,36 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
             };
         }
 
-        const commandOutput = await ddbDocClient.send(
-            new QueryCommand({
-                TableName: process.env.TABLE_NAME,
+        //Create the base of the input
+        let commandInput: QueryCommandInput = {
+            TableName: process.env.TABLE_NAME
+        }
+
+        // If minRating is present, then feed in the Filter Expression that checks for ratings higher than the number.
+        if (minRating) {
+            commandInput = {
+                ...commandInput,
+                FilterExpression: "rating >= :r",
+                KeyConditionExpression: "movieId = :m",
+                ExpressionAttributeValues: {
+                    ":r": minRating,
+                    ":m": movieId
+                },
+            }
+        //If it's not present, only look for the movieId.
+        } else {
+            commandInput = {
+                ...commandInput,
                 KeyConditionExpression: "movieId = :m",
                 ExpressionAttributeValues:
                     { ":m": movieId },
-            })
-        );
+            }
+        }
+
+        //Feed the commandInput into the query.
+        const commandOutput = await ddbDocClient.send(
+            new QueryCommand(commandInput)
+        )
 
         const body = {
             data: commandOutput.Items,
