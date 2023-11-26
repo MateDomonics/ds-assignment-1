@@ -14,6 +14,7 @@ e.g.
 + GET /movies/{movieId}/reviews?minRating=n - Get all the reviews for the movie with the specified ID with a rating greater than the minRating.
 + GET /movies/{movieId}/reviews/{reviewerName} - Get the review for the movie with the specified movie ID and written by the named reviewer.
 + GET /movies/{movieId}/reviews/{year} - Get the review for the movie with the specified movie ID and with the given year.
++ Authentication was also fully done, and the POST request is protected, requiring authorisation to post a new movie.
 
 [Include screenshots from the AWS console (API Gateway service) that clearly show the deployed API ( have legible font size). ]
 
