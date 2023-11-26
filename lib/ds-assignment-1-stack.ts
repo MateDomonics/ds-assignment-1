@@ -18,7 +18,62 @@ export class dsAssignment1Stack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // Stack
+    //=======================
+    //AUTHORISATION
+    //=======================
+
+    const userPool = new UserPool(this, "Assignment1UserPool", {
+      signInAliases: { username: true, email: true },
+      selfSignUpEnabled: true,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    this.userPoolId = userPool.userPoolId;
+
+    const appClient = userPool.addClient("Assignment1AppClient", {
+      authFlows: { userPassword: true },
+    });
+
+    this.userPoolClientId = appClient.userPoolClientId;
+
+    const authApi = new apig.RestApi(this, "Assignment1AuthServiceApi", {
+      description: "Authentication Service RestApi",
+      endpointTypes: [apig.EndpointType.REGIONAL],
+      defaultCorsPreflightOptions: {
+        allowOrigins: apig.Cors.ALL_ORIGINS,
+      },
+    });
+
+    this.auth = authApi.root.addResource("auth");
+
+    this.addAuthRoute(
+      "signup",
+      "POST",
+      "SignupFn",
+      'signup.ts'
+    );
+
+    this.addAuthRoute(
+      "confirm_signup",
+      "POST",
+      "ConfirmFn",
+      "confirm-signup.ts"
+    );
+
+    this.addAuthRoute('signout',
+      'GET',
+      'SignoutFn',
+      'signout.ts'
+    );
+
+    this.addAuthRoute('signin',
+      'POST',
+      'SigninFn',
+      'signin.ts'
+    );
+
+
+    // Table
     const reviewsTable = new dynamodb.Table(this, "reviewsTable", {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: "movieId", type: dynamodb.AttributeType.NUMBER },
@@ -111,6 +166,35 @@ export class dsAssignment1Stack extends cdk.Stack {
       },
     });
 
+    const appCommonFnProps = {
+      architecture: lambda.Architecture.ARM_64,
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 128,
+      runtime: lambda.Runtime.NODEJS_16_X,
+      handler: "handler",
+      environment: {
+        USER_POOL_ID: this.userPoolId,
+        CLIENT_ID: this.userPoolClientId,
+        TABLE_NAME: reviewsTable.tableName,
+        REGION: "eu-west-1",
+      },
+    };
+
+    const authorizerFn = new node.NodejsFunction(this, "AuthorizerFn", {
+      ...appCommonFnProps,
+      entry: `${__dirname}/../lambda/auth/authorizer.ts`,
+    });
+
+    const requestAuthorizer = new apig.RequestAuthorizer(
+      this,
+      "RequestAuthorizer",
+      {
+        identitySources: [apig.IdentitySource.header("cookie")],
+        handler: authorizerFn,
+        resultsCacheTtl: cdk.Duration.minutes(0),
+      }
+    );
+
     //API Endpoint creation
     const moviesEndpoint = api.root.addResource("movies");
 
@@ -119,7 +203,11 @@ export class dsAssignment1Stack extends cdk.Stack {
     const reviewsEndpoint = moviesEndpoint.addResource("reviews");
     reviewsEndpoint.addMethod(
       "POST",
-      new apig.LambdaIntegration(createReview, { proxy: true })
+      new apig.LambdaIntegration(createReview, { proxy: true }),
+      {
+        authorizer: requestAuthorizer,
+        authorizationType: apig.AuthorizationType.CUSTOM
+      }
     )
 
     const movieReviewsEndpoint = movieIDEndpoint.addResource("reviews");
@@ -133,57 +221,6 @@ export class dsAssignment1Stack extends cdk.Stack {
       "GET",
       new apig.LambdaIntegration(getMovieReviewByAuthor, { proxy: true })
     )
-
-    const userPool = new UserPool(this, "Assignment1UserPool", {
-      signInAliases: { username: true, email: true },
-      selfSignUpEnabled: true,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
-
-    this.userPoolId = userPool.userPoolId;
-
-    const appClient = userPool.addClient("Assignment1AppClient", {
-      authFlows: { userPassword: true },
-    });
-
-    this.userPoolClientId = appClient.userPoolClientId;
-
-    const authApi = new apig.RestApi(this, "Assignment1AuthServiceApi", {
-      description: "Authentication Service RestApi",
-      endpointTypes: [apig.EndpointType.REGIONAL],
-      defaultCorsPreflightOptions: {
-        allowOrigins: apig.Cors.ALL_ORIGINS,
-      },
-    });
-
-    this.auth = authApi.root.addResource("auth");
-
-    this.addAuthRoute(
-      "signup",
-      "POST",
-      "SignupFn",
-      'signup.ts'
-    );
-
-    this.addAuthRoute(
-      "confirm_signup",
-      "POST",
-      "ConfirmFn",
-      "confirm-signup.ts"
-    );
-
-    this.addAuthRoute('signout',
-      'GET',
-      'SignoutFn',
-      'signout.ts'
-    );
-
-    this.addAuthRoute('signin',
-      'POST',
-      'SigninFn',
-      'signin.ts'
-    );
-
   }
 
   private addAuthRoute(
