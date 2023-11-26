@@ -28,11 +28,12 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
             TableName: process.env.TABLE_NAME
         }
 
-        // If minRating is present, then feed in the Filter Expression that checks for ratings higher than the number.
+        // If minRating is present, then feed in the Filter Expression that checks for ratings higher than the number, along with the movieId.
         if (minRating) {
             commandInput = {
                 ...commandInput,
-                FilterExpression: "rating >= :r",
+                FilterExpression: "rating >= :r", //I found out about filter expressions from this AWS docs page:
+                                                    //https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html
                 KeyConditionExpression: "movieId = :m",
                 ExpressionAttributeValues: {
                     ":r": minRating,
