@@ -16,7 +16,7 @@ export class dsAssignment1Stack extends cdk.Stack {
     const reviewsTable = new dynamodb.Table(this, "reviewsTable", {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: "movieId", type: dynamodb.AttributeType.NUMBER },
-      sortKey: { name: "reviewDate", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "reviewDate", type: dynamodb.AttributeType.STRING }, //Sort key used to allow us to have multiple reviews for one movieId.
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       tableName: "MovieReviews",
     });
@@ -70,9 +70,25 @@ export class dsAssignment1Stack extends cdk.Stack {
       },
     });
 
+    //Get review based on author's name
+    const getMovieReviewByAuthor = new lambdanode.NodejsFunction(
+      this,
+      "GetMovieReviewByAuthor", {
+      architecture: lambda.Architecture.ARM_64,
+      runtime: lambda.Runtime.NODEJS_16_X,
+      entry: `${__dirname}/../lambda/getMovieReviewByAuthor.ts`,
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 128,
+      environment: {
+        TABLE_NAME: reviewsTable.tableName,
+        REGION: "eu-west-1",
+      },
+    });
+
     //All table permissions
     reviewsTable.grantReadData(getMovieReviews)
     reviewsTable.grantReadWriteData(createReview)
+    reviewsTable.grantReadData(getMovieReviewByAuthor)
 
     // REST API 
     const api = new apig.RestApi(this, "RestAPI", {
@@ -94,7 +110,7 @@ export class dsAssignment1Stack extends cdk.Stack {
 
     const movieIDEndpoint = moviesEndpoint.addResource("{movieId}");
 
-    const reviewsEndpoint = moviesEndpoint.addResource("reviews")
+    const reviewsEndpoint = moviesEndpoint.addResource("reviews");
     reviewsEndpoint.addMethod(
       "POST",
       new apig.LambdaIntegration(createReview, { proxy: true })
@@ -104,6 +120,12 @@ export class dsAssignment1Stack extends cdk.Stack {
     movieReviewsEndpoint.addMethod(
       "GET",
       new apig.LambdaIntegration(getMovieReviews, { proxy: true })
+    )
+
+    const movieReviewByAuthorEndpoint = movieReviewsEndpoint.addResource("{reviewerName}");
+    movieReviewByAuthorEndpoint.addMethod(
+      "GET",
+      new apig.LambdaIntegration(getMovieReviewByAuthor, {proxy: true})
     )
   }
 }

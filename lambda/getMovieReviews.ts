@@ -24,7 +24,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
         }
 
         //Create the base of the input
-        let commandInput: QueryCommandInput = {
+        let commandInput: QueryCommandInput = { //Query command is used to return a group of items rather than just one.
             TableName: process.env.TABLE_NAME
         }
 
@@ -32,9 +32,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
         if (minRating) {
             commandInput = {
                 ...commandInput,
-                FilterExpression: "rating >= :r", //I found out about filter expressions from this AWS docs page:
-                                                    //https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html
-                KeyConditionExpression: "movieId = :m",
+                FilterExpression: "rating >= :r",               //I found out about filter expressions from this AWS docs page:
+                KeyConditionExpression: "movieId = :m",         //https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Query.html
                 ExpressionAttributeValues: {
                     ":r": minRating,
                     ":m": movieId
