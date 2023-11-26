@@ -55,8 +55,24 @@ export class dsAssignment1Stack extends cdk.Stack {
       }
     )
 
+    //Create a new review for a movie
+    const createReview = new lambdanode.NodejsFunction(
+      this,
+      "AddReviewFn", {
+      architecture: lambda.Architecture.ARM_64,
+      runtime: lambda.Runtime.NODEJS_16_X,
+      entry: `${__dirname}/../lambda/addMovieReview.ts`,
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 128,
+      environment: {
+        TABLE_NAME: reviewsTable.tableName,
+        REGION: "eu-west-1",
+      },
+    });
+
     //All table permissions
     reviewsTable.grantReadData(getMovieReviews)
+    reviewsTable.grantReadWriteData(createReview)
 
     // REST API 
     const api = new apig.RestApi(this, "RestAPI", {
@@ -77,6 +93,12 @@ export class dsAssignment1Stack extends cdk.Stack {
     const moviesEndpoint = api.root.addResource("movies");
 
     const movieIDEndpoint = moviesEndpoint.addResource("{movieId}");
+
+    const reviewsEndpoint = moviesEndpoint.addResource("reviews")
+    reviewsEndpoint.addMethod(
+      "POST",
+      new apig.LambdaIntegration(createReview, { proxy: true })
+    )
 
     const movieReviewsEndpoint = movieIDEndpoint.addResource("reviews");
     movieReviewsEndpoint.addMethod(
